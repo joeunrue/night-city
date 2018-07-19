@@ -21,116 +21,63 @@
 
 - name: "Create User {{username}}"
   user:
-      name: "{{username}}"
-      shell: /bin/bash
-      groups: sudo
-      append: yes
-      system: yes
-      home: "/home/{{username}}"
-      state: present
+    name: "{{username}}"
+    shell: /bin/bash
+    groups: sudo
+    append: yes
+    system: yes
+    home: "/home/{{username}}"
+    state: present
   notify: fix home folder permissions
 
-- name: "Add man to the sudoers"
+- name: "Add user to the sudoers"
   raw: echo '%sudo	ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
-
-- name: "Copy git config"
-  template: src=templates/gitconfig.jinja2 dest=/home/{{username}}/.gitconfig
 
 - name: "Add authorized keys"
   authorized_key:
-      user: "{{username}}"
-      state: present
-      key: "{{ssh_keys_url}}"
+    user: "{{username}}"
+    state: present
+    key: "{{ssh_keys_url}}"
 
-- name: "Add fish-shell PPA"
-  apt_repository: repo="ppa:fish-shell/release-2" state=present update_cache=yes
+- name: "Install zsh"
+  apt: name={{item}} state=present update_cache=yes
+  with_items:
+      - zsh
 
-- name: "Install fish shell"
-  apt: name=fish state=present
+- name: "Change shell to zsh"
+  user: name={{username}} shell=/bin/zsh
+  become: true
 
-- name: "Create fish config directory"
-  file: path="/home/{{username}}/.config/fish/functions" state=directory
-  notify: fix home folder permissions
-
-- name: "Download Fundle"
-  get_url:
-      url: https://git.io/fundle-install
-      dest: "/home/{{username}}/.config/fish/functions/fundle.fish"
-
-- name: "Download Oh my fish"
-  get_url:
-      url: http://get.oh-my.fish
-      dest: "/home/{{username}}/install"
-
-- name: "Download my fish functions"
+- name: "Download thoughtbot dotfiles"
+  become: yes
+  become_user: "{{username}}"
   git:
-      repo: https://github.com/Zabanaa/plenty-of-fish.git
-      dest: "/home/{{username}}/fishfuncs"
-      clone: yes
-      force: yes
+    repo: https://github.com/thoughtbot/dotfiles.git
+    dest: "/home/{{username}}/dotfiles"
+    clone: yes
+    force: yes
 
-- name: "Install my fish functions"
-  shell: cp /home/{{username}}/fishfuncs/*.fish /home/{{username}}/.config/fish/functions
-
-- name: "Change my man's shell to fish"
-  command: "/usr/bin/chsh -s /usr/bin/fish {{username}}"
-
-- name: "Download my dotfiles"
+- name: "Download my local dotfiles"
+  become: yes
+  become_user: "{{username}}"
   git:
-      repo: https://github.com/Zabanaa/dotfiles.git
-      dest: "/home/{{username}}/.dotfiles"
-      clone: yes
-      force: yes
+    repo: https://github.com/{{git_username}}/dotfiles-local.git
+    dest: "/home/{{username}}/dotfiles-local"
+    clone: yes
+    force: yes
+
+- name: "Add rcm repo"
+  apt_repository:
+    repo: ppa:martin-frost/thoughtbot-rcm
+
+- name: "Install rcm"
+  apt:
+    name: rcm
 
 - name: "Install my dotfiles"
-  file:
-      src: "/home/{{username}}/.dotfiles/{{item.src}}"
-      dest: "{{item.dest}}"
-      state: link
-  with_items:
-      - {src: "config.fish", dest: "/home/{{username}}/.config/fish/config.fish"}
-      - {src: ".vimrc", dest: "/home/{{username}}/.vimrc"}
-      - {src: ".tmux.conf", dest: "/home/{{username}}/.tmux.conf"}
-
-- name: "Create vim colors directory"
-  file: path="/home/{{username}}/.vim/colors" state=directory
-
-- name: "Download dracula colorscheme"
-  git:
-      repo: https://github.com/dracula/vim
-      dest: "/home/{{username}}/dracula-vim"
-      clone: yes
-      force: yes
-
-- name: "Download afterglow colorscheme"
-  git:
-      repo: https://github.com/danilo-augusto/vim-afterglow
-      dest: "/home/{{username}}/afterglow"
-      clone: yes
-      force: yes
-
-- name: "Download afterglow colorscheme"
-  git:
-      repo: https://github.com/snowcrshd/cyberpunk.vim.git
-      dest: "/home/{{username}}/cyberpunk"
-      clone: yes
-      force: yes
-
-- name: "Download Ninsei Street"
-  git:
-      repo: https://zabana@gitlab.com/zabana/ninsei-street.git
-      dest: "/home/{{username}}/ninsei-street"
-      clone: yes
-      force: yes
-
-- name: "Install dracula colour scheme"
-  command: "cp /home/{{username}}/dracula-vim/colors/dracula.vim /home/{{username}}/.vim/colors/"
-
-- name: "Install afterglow colour scheme"
-  command: "cp /home/{{username}}/afterglow/colors/afterglow.vim /home/{{username}}/.vim/colors/"
-
-- name: "Install cyberpunk colour scheme"
-  command: "cp /home/{{username}}/cyberpunk/colors/cyberpunk.vim /home/{{username}}/.vim/colors/"
+  become: yes
+  become_user: "{{username}}"
+  command: "env RCRC=$HOME/dotfiles/rcrc rcup"
 
 - name: "Install Vundle"
   git:
@@ -140,13 +87,13 @@
 
 - name: "Add vim 8 PPA"
   apt_repository:
-      repo: 'ppa:jonathonf/vim'
+    repo: 'ppa:jonathonf/vim'
 
 - name: "Install vim 8 (with python3 support)"
   apt: name={{item}} state=present update_cache=yes
   with_items:
-      - vim
-      - vim-nox
+    - vim
+    - vim-nox
 
 - name: "Install Tmux 2.2+ Dependencies"
   apt: name={{item}} state=present update_cache=yes
@@ -155,16 +102,6 @@
       - libncurses-dev
       - build-essential
 
-- name: "Download Tmux"
-  git:
-      repo: https://github.com/tmux/tmux.git
-      dest: /home/{{username}}/tmux
-      clone: yes
-      force: yes
-
-- name: "Compile Tmux"
-  raw: "cd /home/{{username}}/tmux && ./autogen.sh"
-
-- name: "Install Tmux"
-  raw: "cd /home/{{username}}/tmux && ./configure && make"
-  notify: move tmux executable to /usr/local/bin
+- name: "Install tmux"
+  apt:
+    name: tmux

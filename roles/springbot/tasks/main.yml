@@ -1,0 +1,60 @@
+---
+- name: Copy over config file
+  copy:
+    src: "~/.ssh/config"
+    dest: /home/{{username}}/.ssh/config
+    owner: "{{username}}"
+    group: "{{username}}"
+    mode: 0644
+
+- name: "Create .ssh/tmp folder"
+  become_user: "{{username}}"
+  file:
+    path: "/home/{{username}}/.ssh/tmp"
+    state: directory
+    mode: 0755
+
+- name: Copy over SSH public key
+  copy:
+    src: "~/.ssh/id_rsa.pub"
+    dest: /home/{{username}}/.ssh/id_rsa.pub
+    owner: "{{username}}"
+    group: "{{username}}"
+    mode: 0600
+
+- name: Copy over SSH private key
+  copy:
+    src: "~/.ssh/id_rsa"
+    dest: /home/{{username}}/.ssh/id_rsa
+    owner: "{{username}}"
+    group: "{{username}}"
+    mode: 0600
+
+- name: "Create code folder"
+  become_user: "{{username}}"
+  file:
+    path: "/home/{{username}}/code"
+    state: directory
+    mode: 0755
+
+- name: "Create code/springbot folder"
+  file:
+    path: "/home/{{username}}/code/springbot"
+    state: directory
+    mode: 0755
+  become_user: "{{username}}"
+
+- name: "Download Springbot www app"
+  git:
+    repo: git@github.com:springbot/www.git
+    dest: "/home/{{username}}/code/springbot/www"
+    clone: yes
+    accept_hostkey: yes
+  become_user: "{{username}}"
+
+- name: "Download Springbot api app"
+  git:
+    repo: git@github.com:springbot/api.git
+    dest: "/home/{{username}}/code/springbot/api"
+    clone: yes
+  become_user: "{{username}}"
